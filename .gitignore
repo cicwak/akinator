@@ -1,0 +1,7 @@
+.idea
+config
+logs
+nginx
+ssl
+venv
+db.sqlite3

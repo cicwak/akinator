@@ -4,7 +4,7 @@ from django.shortcuts import HttpResponse
 from .models import akin, profiles, flood_control, daily_bonus
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
-from .secret_key import service_key
+from .secret_key import service_key, token_group
 
 from stem import Signal
 from stem.control import Controller
@@ -918,6 +918,9 @@ def update(request, child_mode=False):
     except ValueError:
         return HttpResponse(json.dumps(None, ensure_ascii=False))
 
+    if step >= 80:
+        return HttpResponse(json.dumps({"error": "failed_to_guess"}, ensure_ascii=False))
+
     if session > 100000 or signature > 179858659200:
         return HttpResponse(json.dumps(None, ensure_ascii=False))
 
@@ -1076,23 +1079,6 @@ def how_games(request):
     except Exception:
         return HttpResponse(json.dumps(None, ensure_ascii=False))
 
-    '''    
-    place_in_top = 1
-    while True:
-
-        delitel = len(most_games_players) // 2
-        if most_games_players[delitel].how_start < user_games:
-            most_games_players = most_games_players[delitel:-1]
-            place_in_top += delitel
-        elif most_games_players[delitel].how_start > user_games:
-            most_games_players = most_games_players[0:delitel]
-            place_in_top -= delitel
-        elif most_games_players[delitel].how_start == user_games:
-            place_in_top += delitel
-            break
-    place_in_top = 1    
-    '''
-
     most_games_players = np.array(profiles.objects.order_by('-how_start'))
     place_in_top = 0
     count = 0
@@ -1108,24 +1094,31 @@ def how_games(request):
     if int(time.time()) > profile.timestamp_bonus + 86400:
         isAvailable = True
         timeRecieved = f'Тебе дается 2 бесплатные попытки, нажми чтобы собрать их.'
-        profile.how_left += 2
+        #profile.how_left += 2
         #profile.timestamp_bonus = int(time.time())
     else:
         isAvailable = False
         if (int(time.time()) - profile.timestamp_bonus + 86400) > 3599:
             hours = (profile.timestamp_bonus + 86400 - int(time.time())) // 3600
-            if hours == 11:
-                timeRecieved = f'Заходи через {hours} часов и получишь бесплатные игры'
-            elif 21 > hours % 10 > 4:
-                timeRecieved = f'Заходи через {hours} часов и получишь бесплатные игры'
-            elif hours % 10 == 2 or hours % 10 == 3 or hours % 10 == 4:
-                timeRecieved = f'Заходи через {hours} часа и получишь бесплатные игры'
-            elif hours % 10 == 1:
-                timeRecieved = f'Заходи через {hours} час и получишь бесплатные игры'
+            timeRecieved = f'{hours}ч'
+
         else:
-            timeRecieved = 'Бонус ждет тебя совсем скоро, заходи через час и получишь его!'
-    answer = {'games_start': profile.how_start, 'games_left': profile.how_left, 'place_in_top': place_in_top,
-              'isAvailable': isAvailable, 'timeReceived': timeRecieved}
+            minute = (profile.timestamp_bonus + 86400 - int(time.time())) // 60
+            timeRecieved = f'{minute}мин'
+
+    donate = requests.get(
+        f"https://api.vk.com/method/groups.getMembers?access_token={token_group}&group_id=bastud&filter=donut&v=5.126").json()
+
+    list_donate = donate['response']['items']
+    if profile.user_id in list_donate:
+        left_games = 999999999
+    else:
+        left_games = profile.how_left
+    answer = {'games_start': profile.how_start, 'games_left': left_games, 'place_in_top': place_in_top,
+              'isAvailable': isAvailable}
+    if not isAvailable:
+        answer['timeReceived'] = timeRecieved
+
     profile.save()
     return HttpResponse(json.dumps(answer, ensure_ascii=False))
 
@@ -1274,6 +1267,10 @@ def rating(request):
         f"https://api.vk.com/method/users.get?user_ids={rating_players_id}&access_token={token}&fields=photo_200_orig,photo_max_orig"
         f"&v=5.126").json()
 
+    donate = requests.get(
+        f"https://api.vk.com/method/groups.getMembers?access_token={token_group}&group_id=bastud&filter=donut&v=5.126").json()
+
+    list_donate = donate['response']['items']
     answer = {}
     count = 0
     for i in range(len(user_vk['response'])):
@@ -1283,6 +1280,10 @@ def rating(request):
         user_vk['response'][i]['img'] = user_vk['response'][i]['photo_max_orig']
         user_vk['response'][i]['isDonut'] = profile.isDonate
         user_vk['response'][i]['how_start'] = profile.how_start
+        if user_vk['response'][i]['id'] in list_donate:
+            user_vk['response'][i]['isDonate'] = True
+        else:
+            user_vk['response'][i]['isDonate'] = False
         answer[count] = user_vk['response'][i]
         count += 1
 
@@ -1663,6 +1664,7 @@ def rating_beetween_friends(r):
 
     return HttpResponse(json.dumps(pre_answer, ensure_ascii=False))
 
+
 def get_attemp(request):
     if str(request.method) != 'GET':
         response = HttpResponse("Данил. Хватит. Умоляю. Этот хост стоит 150 руб, не надо с ним так.</br> Спасибо!")
@@ -1687,10 +1689,11 @@ def get_attemp(request):
         return HttpResponse("Ты пытаешься сломать что-то? Ага, ага, пытайся")
 
     if int(time.time()) > profile.timestamp_bonus + 86400:
-        profile.how_left += 2
-        profile.timestamp_bonus = int(time.time())
+        k = randint(0, 3)
+        profile.how_left += k
+        profile.timestamp_bonus = int(time.time()) # расскоментровать на прод!!!!!!!!!!!
         profile.save()
     else:
-        return HttpResponse(json.dumps({'error' : 'Сутки не прошли'}, ensure_ascii=False))
+        return HttpResponse(json.dumps({'error': 'Сутки не прошли'}, ensure_ascii=False))
 
-    return HttpResponse(json.dumps({}, ensure_ascii=False))
+    return HttpResponse(json.dumps({"isAvaliable" : True, "count" : k, "dolg" : "21.34 $USA", "dolg from 2010" : "3 hundred bucks", }, ensure_ascii=False))
