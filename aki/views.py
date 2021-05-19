@@ -4,6 +4,8 @@ from django.shortcuts import HttpResponse
 from .models import akin, profiles, flood_control, daily_bonus
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
+from django.db import IntegrityError
+from django.db.utils import OperationalError
 from .secret_key import service_key, token_group
 
 from stem import Signal
@@ -30,7 +32,6 @@ from urllib.parse import urlparse, parse_qsl, urlencode
 
 token = "cfc1ac2bfe0c13307ed1250665c0e6837411829ce009b1643e9f03c5d9b0819a8d5b4dbde2be7fb3add09"
 
-
 def get_current_ip():
     session = requests.session()
 
@@ -42,7 +43,7 @@ def get_current_ip():
     try:
         r = session.get('http://httpbin.org/ip')
     except Exception as e:
-        print(str(e))
+        pass
     else:
         return r.text
 
@@ -518,7 +519,7 @@ def gg(r, user_id=None) -> bool:
             try:
                 flood_user = flood_control.objects.get(user_id=user_id)
                 if flood_user.timestamp == int(str(datetime.datetime.now()).split(':')[1]):
-                    if flood_user.count > 39:
+                    if flood_user.count > 59:
                         return False
                     flood_user.count += 1
                     flood_user.save()
@@ -541,11 +542,13 @@ def gg(r, user_id=None) -> bool:
         try:
             flood_user = flood_control.objects.get(user_id=user_id)
             if flood_user.timestamp == int(str(datetime.datetime.now()).split(':')[1]):
-                if flood_user.count > 39:
+                if flood_user.count > 299:
                     return False
-                print(6)
                 flood_user.count += 1
-                flood_user.save()
+                try:
+                    flood_user.save()
+                except OperationalError :
+                    pass
             else:
                 flood_user.timestamp = int(str(datetime.datetime.now()).split(':')[1])
                 flood_user.count = 1
@@ -553,7 +556,10 @@ def gg(r, user_id=None) -> bool:
         except Exception:
             timestamp = int(str(datetime.datetime.now()).split(':')[1])
             a = flood_control(user_id=user_id, timestamp=timestamp, count=1)
-            a.save()
+            try:
+                a.save()
+            except OperationalError:
+                pass
     status = is_valid(query=query_params, secret=client_secret)
     if status:
         return True
@@ -656,7 +662,7 @@ class Akinator_dynamic_ip():
             self._update(resp, True)
             return resp, self.timestamp
         else:
-            return None, None
+            return resp, None
         ###
         ###
         ###
@@ -685,7 +691,7 @@ def start_game_ip(request):
     if gg(request, request.GET.get('id')):
         pass
     else:
-        return HttpResponse(json.dumps(None, ensure_ascii=False))
+        return HttpResponse(json.dumps({"error": "flood_control"}, ensure_ascii=False), status=403)
 
     try:
         url = 'https://example.com/?' + request.headers.get('xvk')
@@ -704,6 +710,15 @@ def start_game_ip(request):
 
     try:
         profile = profiles.objects.get(user_id=user_id)
+        if profile.how_left < 1:
+            profile.save()
+            time.sleep(1.5)
+            profile = profiles.objects.get(user_id=user_id)
+            if profile.how_left < 1:
+                return HttpResponse(json.dumps({"error": "no_attemp"}, ensure_ascii=False), status=403)
+            profile.save()
+
+
     except Exception:
         return HttpResponse(json.dumps({'error': 'profile not found'}, ensure_ascii=False))
 
@@ -713,19 +728,19 @@ def start_game_ip(request):
 
     aki = Akinator_dynamic_ip()
 
-    with open('time_ip.txt', 'r') as f:
-        file = f.read()
-    if str(datetime.datetime.today()).split(' ')[1].split(':')[0] != str(file):
-        with open('time_ip.txt', 'w') as f:
-            f.write(str(str(datetime.datetime.today()).split(' ')[1].split(':')[0]))
-        aki.change_ip()
-
     # timestamp = time.time()
 
     pars, timestamp = aki.start_game(language=language)
     frontaddr = aki.front()
 
-    if pars is None:
+    if timestamp is None:
+        print(pars)
+        aks = akin(session=0, signature=0, challenge_auth='error',
+                   answers='{}'.format(str(pars)),
+                   timestamp=0, frontaddr=0, user_id=user_id)
+        aks.save()
+
+
         return HttpResponse(None)
 
     parse = pars['parameters']['step_information']
@@ -797,7 +812,7 @@ def start_game_without_KO_TIMEOUT(request):
     if gg(request, request.GET.get('id')):
         pass
     else:
-        return HttpResponse(json.dumps(None, ensure_ascii=False))
+        return HttpResponse(json.dumps({"error": "flood_control"}, ensure_ascii=False), status=403)
 
     user_id = request.GET.get('id')
     if user_id is None:
@@ -896,7 +911,7 @@ def update(request, child_mode=False):
     if gg(request):
         pass
     else:
-        return HttpResponse(json.dumps(None, ensure_ascii=False))
+        return HttpResponse(json.dumps({"error": "flood_control"}, ensure_ascii=False), status=403)
 
     """
     Args:
@@ -944,12 +959,14 @@ def update(request, child_mode=False):
     timestamp = aks.timestamp
     frontaddr = aks.frontaddr
     user_id = aks.user_id
+    aks.save()
     uri = "ru.akinator.com"
     question_filter = ""
     server = 'https://srv12.akinator.com:9398/ws'
 
     try:
         profile = profiles.objects.get(user_id=user_id)
+        profile.save()
     except Exception:
         return HttpResponse(json.dumps({'error': 'profile not found'}, ensure_ascii=False))
 
@@ -968,10 +985,14 @@ def update(request, child_mode=False):
 
     if r['completion'] == 'OK':
         step = int(r["parameters"]["step"])
+    elif r['completion'] == 'WARN - NO QUESTION':
+        return HttpResponse(json.dumps({"error": "failed_to_guess"}, ensure_ascii=False))
+    elif r['completion'] == 'KO - SERVER DOWN':
+        return HttpResponse(json.dumps({"error": "KO - SERVER DOWN"}, ensure_ascii=False), status=400)
     else:
         return HttpResponse(json.dumps(ahahaha, ensure_ascii=False))
 
-    if float(r['parameters']['progression']) > 80.0:
+    if float(r['parameters']['progression']) > 85.0:
         resp = win(server=server, timestamp=timestamp, session=session, signature=signature, step=step)
         a = {"element": {"id": "48560", "name": "кот-флейтист", "id_base": "2240792", "proba": "0.871314",
                          "description": "кот-флейтист", "valide_contrainte": "1", "ranking": "9", "pseudo": "X",
@@ -990,7 +1011,9 @@ def update(request, child_mode=False):
             id_base = el['id_base']
             proba = el['proba']
             description = el['description']
-            letters = ["порн", "порно", "секс", "взрослое", "взрослого кино", "эроти", "эскорт"]
+
+            aks = akin.objects.get(session=session, signature=signature, challenge_auth=challenge_auth)
+            letters = ["порн", "порно", "секс", "взрослое", "взрослого кино", "эроти", "эскорт", "порноактёр", "террор"]
             isNotChild = False
             for i in letters:
                 if str(description).find(i) != -1:
@@ -1005,6 +1028,8 @@ def update(request, child_mode=False):
             aks.character = '{}|{}|{}|{}|{}|{}'.format(id, name, id_base, proba, description, absolute_picture_path)
             aks.game_end = True
             aks.save()
+
+            profile = profiles.objects.get(user_id=user_id)
             if profile.how_left <= 0:
                 pass
             else:
@@ -1044,7 +1069,7 @@ def last_games(request):
     if gg(request):
         pass
     else:
-        return HttpResponse(json.dumps(None, ensure_ascii=False))
+        return HttpResponse(json.dumps({"error": "flood_control"}, ensure_ascii=False), status=403)
 
     answer = {1: []}
     html = requests.get('https://ru.akinator.com/').text
@@ -1072,7 +1097,7 @@ def how_games(request):
     if gg(request, user_id=user_id):
         pass
     else:
-        return HttpResponse(json.dumps(None, ensure_ascii=False))
+        return HttpResponse(json.dumps({"error": "flood_control"}, ensure_ascii=False), status=403)
 
     try:
         profile = profiles.objects.get(user_id=user_id)
@@ -1094,24 +1119,30 @@ def how_games(request):
     if int(time.time()) > profile.timestamp_bonus + 86400:
         isAvailable = True
         timeRecieved = f'Тебе дается 2 бесплатные попытки, нажми чтобы собрать их.'
-        #profile.how_left += 2
-        #profile.timestamp_bonus = int(time.time())
+        # profile.how_left += 2
+        # profile.timestamp_bonus = int(time.time())
     else:
-        isAvailable = False
-        if (int(time.time()) - profile.timestamp_bonus + 86400) > 3599:
-            hours = (profile.timestamp_bonus + 86400 - int(time.time())) // 3600
+        if int(profile.timestamp_bonus) + 86400 - int(time.time()) > 3599:
+            hours = (int(profile.timestamp_bonus) + 86400 - int(time.time())) // 3600
             timeRecieved = f'{hours}ч'
-
+            isAvailable = False
         else:
-            minute = (profile.timestamp_bonus + 86400 - int(time.time())) // 60
+            minute = (int(profile.timestamp_bonus) + 86400 - int(time.time())) // 60
             timeRecieved = f'{minute}мин'
+            isAvailable = False
+
+
+
+
 
     donate = requests.get(
         f"https://api.vk.com/method/groups.getMembers?access_token={token_group}&group_id=bastud&filter=donut&v=5.126").json()
-
-    list_donate = donate['response']['items']
+    try:
+        list_donate = donate['response']['items']
+    except Exception:
+        list_donate = []
     if profile.user_id in list_donate:
-        left_games = 999999999
+        left_games = 'infinity'
     else:
         left_games = profile.how_left
     answer = {'games_start': profile.how_start, 'games_left': left_games, 'place_in_top': place_in_top,
@@ -1140,15 +1171,9 @@ def post_new_user(request):
     if gg(request):
         pass
     else:
-        return HttpResponse(json.dumps(False, ensure_ascii=False))
+        return HttpResponse(json.dumps({"error": "flood_control"}, ensure_ascii=False), status=403)
 
-    '''
-    try:
-        profile = profiles.objects.get(user_id=id_vk)
-        return HttpResponse(json.dumps(None, ensure_ascii=False))
-    except Exception:
-        pass
-    '''
+
     user_id = id_vk
     user_vk = requests.get(
         f"https://api.vk.com/method/users.get?user_ids={user_id}&access_token={token}&fields=photo_200_orig,photo_max_orig&v=5.126").json()
@@ -1156,15 +1181,66 @@ def post_new_user(request):
     snf = f"{user_vk['first_name']} {user_vk['last_name']}"
     img = user_vk['photo_max_orig']
 
-    p = profiles(user_id=id_vk, snf=snf, img=img, how_start=0, how_left=5, how_referals=0,
-                 timestamp_register=int(time.time()), timestamp_bonus=int(time.time()))  # Это на прод
-    try:
-        p.save()
-    except Exception as e:
-        return HttpResponse(json.dumps(None, ensure_ascii=False))
 
-    response = HttpResponse(json.dumps(user_vk, ensure_ascii=False))
-    return response
+    try:
+        profile = profiles(user_id=id_vk, snf=snf, img=img, how_start=0, how_left=5, how_referals=0,
+                           timestamp_register=int(time.time()), timestamp_bonus= int(time.time()))  # Это на прод
+        profile.save()
+    except Exception as e:
+        profile = profiles.objects.get(user_id=id_vk)
+
+
+    timeRecieved = ''
+    most_games_players = np.array(profiles.objects.order_by('-how_start'))
+    place_in_top = 0
+    count = 0
+    for i in most_games_players:
+        count += 1
+        if i == profile:
+            place_in_top = count
+            break
+
+    if profile.how_left <= 0:
+        profile.how_left = 0
+
+    if int(time.time()) > profile.timestamp_bonus + 86400:
+        isAvailable = True
+        timeRecieved = f'Тебе дается 2 бесплатные попытки, нажми чтобы собрать их.'
+        # profile.how_left += 2
+        # profile.timestamp_bonus = int(time.time())
+    else:
+        if int(profile.timestamp_bonus) + 86400 - int(time.time()) > 3599:
+            hours = (int(profile.timestamp_bonus) + 86400 - int(time.time())) // 3600
+            timeRecieved = f'{hours}ч'
+            isAvailable = False
+        else:
+            minute = (int(profile.timestamp_bonus) + 86400 - int(time.time())) // 60
+            timeRecieved = f'{minute}мин'
+            isAvailable = False
+
+    donate = requests.get(
+        f"https://api.vk.com/method/groups.getMembers?access_token={token_group}&group_id=bastud&filter=donut&v=5.126").json()
+
+    try:
+        list_donate = donate['response']['items']
+    except Exception:
+        list_donate = []
+    if profile.user_id in list_donate:
+        left_games = "Infinity"
+    else:
+        left_games = profile.how_left
+    answer = {'games_start': profile.how_start, 'games_left': left_games, 'place_in_top': place_in_top,
+              'isAvailable': isAvailable}
+    if not isAvailable:
+        answer['timeReceived'] = timeRecieved
+
+    try:
+        profile.save()
+    except Exception as e:
+        pass
+
+
+    return HttpResponse(json.dumps(answer, ensure_ascii=False))
 
 
 def last_10_games(request):
@@ -1176,7 +1252,7 @@ def last_10_games(request):
     if gg(request):
         pass
     else:
-        return HttpResponse(json.dumps(None, ensure_ascii=False))
+        return HttpResponse(json.dumps({"error": "flood_control"}, ensure_ascii=False), status=403)
 
     all_akin = akin.objects.filter(character__isnull=False)
     answer = {}
@@ -1185,6 +1261,7 @@ def last_10_games(request):
         last = all_akin[len(all_akin) - 10:len(all_akin)]
     except AssertionError:
         last = all_akin
+
 
     count = 0
     for i in last:
@@ -1221,7 +1298,7 @@ def add_try(request):
     if gg(request, user_id=user_id):
         pass
     else:
-        return HttpResponse(json.dumps(None, ensure_ascii=False))
+        return HttpResponse(json.dumps({"error": "flood_control"}, ensure_ascii=False), status=403)
 
     # aks = akin.objects.get(session=session, signature=signature, challenge_auth=challenge_auth)
 
@@ -1247,7 +1324,7 @@ def rating(request):
     if gg(request):
         pass
     else:
-        return HttpResponse(json.dumps(None, ensure_ascii=False))
+        return HttpResponse(json.dumps({"error": "flood_control"}, ensure_ascii=False), status=403)
 
     # user_id = request.GET.get('id')
 
@@ -1264,13 +1341,17 @@ def rating(request):
         rating_players_id = rating_players_id[0:-1]
 
     user_vk = requests.get(
-        f"https://api.vk.com/method/users.get?user_ids={rating_players_id}&access_token={token}&fields=photo_200_orig,photo_max_orig"
+        f"https://api.vk.com/method/users.get?user_ids={rating_players_id}&access_token={token_group}&fields=photo_200,photo_max_orig"
         f"&v=5.126").json()
 
     donate = requests.get(
         f"https://api.vk.com/method/groups.getMembers?access_token={token_group}&group_id=bastud&filter=donut&v=5.126").json()
 
-    list_donate = donate['response']['items']
+    try:
+        list_donate = donate['response']['items']
+    except Exception:
+        list_donate = []
+
     answer = {}
     count = 0
     for i in range(len(user_vk['response'])):
@@ -1278,6 +1359,7 @@ def rating(request):
         user_vk['response'][i]['name'] = user_vk['response'][i]['first_name'] + ' ' + user_vk['response'][i][
             'last_name']
         user_vk['response'][i]['img'] = user_vk['response'][i]['photo_max_orig']
+        user_vk['response'][i]['photo_200_orig'] = user_vk['response'][i]['photo_200']
         user_vk['response'][i]['isDonut'] = profile.isDonate
         user_vk['response'][i]['how_start'] = profile.how_start
         if user_vk['response'][i]['id'] in list_donate:
@@ -1310,7 +1392,7 @@ def get_last_games_id(request):
     if gg(request, user_id=user_id):
         pass
     else:
-        return HttpResponse(json.dumps(None, ensure_ascii=False))
+        return HttpResponse(json.dumps({"error": "flood_control"}, ensure_ascii=False), status=403)
 
     answer = {}
     try:
@@ -1327,7 +1409,7 @@ def get_last_games_id(request):
         except:
             character[str(i.character).split('|')[1]] = 1
 
-    for i in characters:
+    for i in reversed(characters):
         character_description[str(i.character).split('|')[1]] = {
             'name': str(i.character).split('|')[1],
             'img': str(i.character).split('|')[-1],
@@ -1335,8 +1417,9 @@ def get_last_games_id(request):
             'isLimitation': i.isNotChild,
             'count': character[str(i.character).split('|')[1]]
         }
+
     answer = {}
-    for i in reversed(character_description.keys()):
+    for i in list(character_description.keys())[:10]:
         answer[i] = character_description[i]
 
     return HttpResponse(json.dumps(answer, ensure_ascii=False))
@@ -1352,7 +1435,7 @@ def _rating(request):
     if gg(request, user_id=user_id):
         pass
     else:
-        return HttpResponse(json.dumps(None, ensure_ascii=False))
+        return HttpResponse(json.dumps({"error": "flood_control"}, ensure_ascii=False), status=403)
 
     try:
         profile = profiles.objects.get(user_id=user_id)
@@ -1477,7 +1560,7 @@ def daily_rating(request):
     if gg(request):
         pass
     else:
-        return HttpResponse(json.dumps(None, ensure_ascii=False))
+        return HttpResponse(json.dumps({"error": "flood_control"}, ensure_ascii=False), status=403)
 
     def value_counts(list, x):
         count = 0
@@ -1507,6 +1590,11 @@ def daily_rating(request):
     for i in personCount:
         answer.append({'name': i, 'count': personCount[i], 'img': akis[i][0], 'isLimitation': akis[i][1]})
 
+    for i in range(len(answer)):
+        for j in range(len(answer)):
+            if answer[i]['count'] > answer[j]['count']:
+                answer[i], answer[j] = answer[j], answer[i]
+
     return HttpResponse(json.dumps(answer, ensure_ascii=False))
 
 
@@ -1524,7 +1612,7 @@ def add_donate(request):
     if gg(request, user_id=user_id):
         pass
     else:
-        return HttpResponse(json.dumps(None, ensure_ascii=False))
+        return HttpResponse(json.dumps({"error": "flood_control"}, ensure_ascii=False), status=403)
 
     try:
         profile = profiles.objects.get(user_id=user_id)
@@ -1623,7 +1711,7 @@ def rating_beetween_friends(r):
     if gg(r):
         pass
     else:
-        return HttpResponse(json.dumps(False, ensure_ascii=False))
+        return HttpResponse(json.dumps({"error": "flood_control"}, ensure_ascii=False), status=403)
 
     answer = []
     try:
@@ -1635,26 +1723,34 @@ def rating_beetween_friends(r):
     profiles_player = profiles.objects.order_by('-how_start')
     req = requests.get(
         f"https://api.vk.com/method/friends.get?user_id={user_id}&access_token={service_key}&order=random&fields"
-        f"=nickname,photo_200_orig&v=5.126").json()
+        f"=nickname,photo_200,photo_max_orig&v=5.126").json()
+
+    user = user_vk = requests.get(
+        f"https://api.vk.com/method/users.get?user_ids={user_id}&access_token={token}&fields=photo_200,photo_max_orig&v=5.126").json()
     friend_user = []
     try:
         for i in req['response']['items']:
-            friend_user.append(i['id'])
+            friend_user.append(i)
     except KeyError:
         return HttpResponse(json.dumps({'error': 'profile_private'}, ensure_ascii=False))
 
     pre_answer = []
+    friend_user.append(user['response'][0])
     for friend in friend_user:
         try:
-            profile_friend = profiles_player.get(user_id=int(friend))
+            profile_friend = profiles_player.get(user_id=int(friend['id']))
             ans = {
                 "name": profile_friend.snf,
                 "img": profile_friend.img,
                 "how_start": profile_friend.how_start,
-                'id': profile_friend.user_id
+                'id': profile_friend.user_id,
+                'photo_200_orig': friend['photo_200'],
+                'photo_max_orig': friend['photo_max_orig'],
             }
             pre_answer.append(ans)
-        except Exception:
+        except ObjectDoesNotExist:
+            pass
+        except KeyError:
             pass
 
     for i in range(len(pre_answer)):
@@ -1673,7 +1769,7 @@ def get_attemp(request):
     if gg(request):
         pass
     else:
-        return HttpResponse(json.dumps(False, ensure_ascii=False))
+        return HttpResponse(json.dumps({"error": "flood_control"}, ensure_ascii=False), status=403)
 
     try:
         url = 'https://example.com/?' + request.headers.get('xvk')
@@ -1689,11 +1785,45 @@ def get_attemp(request):
         return HttpResponse("Ты пытаешься сломать что-то? Ага, ага, пытайся")
 
     if int(time.time()) > profile.timestamp_bonus + 86400:
-        k = randint(0, 3)
+        k = randint(0, 5)
         profile.how_left += k
-        profile.timestamp_bonus = int(time.time()) # расскоментровать на прод!!!!!!!!!!!
+        profile.timestamp_bonus = int(time.time())  # расскоментровать на прод!!!!!!!!!!!
         profile.save()
     else:
         return HttpResponse(json.dumps({'error': 'Сутки не прошли'}, ensure_ascii=False))
 
-    return HttpResponse(json.dumps({"isAvaliable" : True, "count" : k, "dolg" : "21.34 $USA", "dolg from 2010" : "3 hundred bucks", }, ensure_ascii=False))
+    return HttpResponse(
+        json.dumps({"isAvaliable": True, "count": k, "dolg": "21.34 $USA", "dolg from 2010": "3 hundred bucks", },
+                   ensure_ascii=False))
+
+
+def add_attemp(request):
+    user_id = request.GET.get('id')
+    profile = profiles.objects.get(user_id=user_id)
+    profile.how_left += 1
+    profile.save()
+    return HttpResponse(json.dumps({"status": "OK"}, ensure_ascii=False), status=200)
+
+
+def conversion(request):
+    if gg(request):
+        pass
+    else:
+        return HttpResponse(json.dumps({"error": "flood_control"}, ensure_ascii=False), status=403)
+
+    r = requests.get("some_url")
+
+    try:
+        url = 'https://example.com/?' + request.headers.get('xvk')
+    except Exception:
+        return HttpResponse(json.dumps(None, ensure_ascii=False))
+
+    query_params = dict(parse_qsl(urlparse(url=url).query, keep_blank_values=True))
+    user_id = query_params['vk_user_id']
+    try:
+        profile = profiles.objects.get(user_id=user_id)
+        profile.how_left += 1
+    except Exception:
+        return HttpResponse("Ты пытаешься сломать что-то? Ага, ага, пытайся")
+
+    return HttpResponse(json.dumps({"status" : "OK"}, ensure_ascii=False), status=200)

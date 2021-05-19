@@ -100,7 +100,7 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': str(BASE_DIR / 'db.sqlite3'),
-        'CONN_MAX_AGE': 60,  # с этим аккуратно
+        'CONN_MAX_AGE': 0,  # с этим аккуратно
     }
 }
 
@@ -139,6 +139,6 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/3.1/howto/static-files/
 
 STATIC_URL = '/static/'
-STATIC_ROOT = os.path.join(str(BASE_DIR), 'static')
+STATIC_ROOT = os.path.join(str(BASE_DIR), 'static/')
 STATIC_DIR = '/static'
 

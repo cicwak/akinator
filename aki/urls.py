@@ -4,7 +4,6 @@ from . import views
 
 urlpatterns = [
     path('start_game/', views.start_game_ip),  # id=
-    path('start_game_ip/', views.start_game_ip),
     path('update/', views.update),  # session=&signature=&challenge_auth=&step=&ans=
     path('last_games/', views.last_games),
     path('how_games/', views.how_games),  # id=
@@ -22,4 +21,5 @@ urlpatterns = [
     path('ip/', views.ip),
     path('rating_beetween_friends/', views.rating_beetween_friends),
     path('get_daily_bonus/', views.get_attemp),
+    path('add_attemp/', views.add_attemp),
 ]
