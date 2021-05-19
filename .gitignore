@@ -1,7 +1,7 @@
 .idea
 config
+ssl
 logs
 nginx
-ssl
 venv
 db.sqlite3

@@ -1184,7 +1184,7 @@ def post_new_user(request):
 
     try:
         profile = profiles(user_id=id_vk, snf=snf, img=img, how_start=0, how_left=5, how_referals=0,
-                           timestamp_register=int(time.time()), timestamp_bonus= int(time.time()))  # Это на прод
+                           timestamp_register=int(time.time()), timestamp_bonus=int(time.time()))  # Это на прод
         profile.save()
     except Exception as e:
         profile = profiles.objects.get(user_id=id_vk)
@@ -1595,7 +1595,7 @@ def daily_rating(request):
             if answer[i]['count'] > answer[j]['count']:
                 answer[i], answer[j] = answer[j], answer[i]
 
-    return HttpResponse(json.dumps(answer, ensure_ascii=False))
+    return HttpResponse(json.dumps(answer[0:30], ensure_ascii=False))
 
 
 def add_donate(request):
@@ -1803,27 +1803,3 @@ def add_attemp(request):
     profile.how_left += 1
     profile.save()
     return HttpResponse(json.dumps({"status": "OK"}, ensure_ascii=False), status=200)
-
-
-def conversion(request):
-    if gg(request):
-        pass
-    else:
-        return HttpResponse(json.dumps({"error": "flood_control"}, ensure_ascii=False), status=403)
-
-    r = requests.get("some_url")
-
-    try:
-        url = 'https://example.com/?' + request.headers.get('xvk')
-    except Exception:
-        return HttpResponse(json.dumps(None, ensure_ascii=False))
-
-    query_params = dict(parse_qsl(urlparse(url=url).query, keep_blank_values=True))
-    user_id = query_params['vk_user_id']
-    try:
-        profile = profiles.objects.get(user_id=user_id)
-        profile.how_left += 1
-    except Exception:
-        return HttpResponse("Ты пытаешься сломать что-то? Ага, ага, пытайся")
-
-    return HttpResponse(json.dumps({"status" : "OK"}, ensure_ascii=False), status=200)

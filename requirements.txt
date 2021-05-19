@@ -1,4 +1,5 @@
 asgiref==3.3.1
+<<<<<<< HEAD
 beautifulsoup4==4.9.3
 bs4==0.0.1
 certifi==2020.12.5
@@ -14,3 +15,18 @@ sqlparse==0.4.1
 stem==1.8.0
 torrequest==0.1.0
 urllib3==1.26.4
+=======
+certifi==2020.12.5
+chardet==3.0.4
+Django==2.2
+django-cors-headers==2.2
+gunicorn==20.0.4
+idna==2.10
+pytz==2020.4
+requests==2.25.0
+sqlparse==0.4.1
+urllib3==1.26.2
+soupsieve==2.1
+beautifulsoup4==4.9.3
+bs4==0.0.1
+>>>>>>> 36d0574c1845140a3749a8c9c2293cf8df508bd4
