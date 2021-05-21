@@ -1820,7 +1820,9 @@ def statistics(request):
 
 
     if now > period:
-        pass
+        aki = akin.objects.filter(timestamp__gte=from_time)#.filter(timestamp__lte=to_time)
+        for i in aki:
+            print(i)
     else:
         return HttpResponse(json.dumps({"error" : "date_is_low"}, ensure_ascii=False), status=400)
 
