@@ -13,13 +13,14 @@ urlpatterns = [
     path('rating/', views.rating),
     path('get_last_games_id/', views.get_last_games_id),  # последние игры пользователя id=
     path('referals/', views.referals),
-    path('get_referals/', views.get_referals), #
+    path('get_referals/', views.get_referals),  #
     path('daily_rating/', views.daily_rating),
-    path('add_donate/', views.add_donate), #
-    path('remove_donate/', views.remove_donate), #
+    path('add_donate/', views.add_donate),  #
+    path('remove_donate/', views.remove_donate),  #
     path('test_headers/', views.test_headers),
     path('ip/', views.ip),
     path('rating_beetween_friends/', views.rating_beetween_friends),
     path('get_daily_bonus/', views.get_attemp),
     path('add_attemp/', views.add_attemp),
+    path('stats/', views.statistics),
 ]

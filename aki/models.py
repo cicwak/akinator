@@ -50,6 +50,11 @@ class profiles(models.Model):
         verbose_name_plural = 'Профили'
 
 
+        indexes = [
+            models.Index(fields=['user_id']),
+            models.Index(fields=['user_id'], name='user_id_idx'),
+        ]
+
 class flood_control(models.Model):
     user_id = models.IntegerField(unique=True)
     timestamp = models.IntegerField(null=True)
@@ -62,3 +67,9 @@ class flood_control(models.Model):
 class daily_bonus(models.Model):
     user_id = models.IntegerField(null=False, blank=False, unique=False)
     timestamp = models.IntegerField(default=0)
+
+
+class stats(models.Model):
+    date = models.DateField(unique=True)
+    img = models.TextField(null=True)
+    js = models.TextField(null=True)

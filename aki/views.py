@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from django.shortcuts import HttpResponse
-from .models import akin, profiles, flood_control, daily_bonus
+from .models import akin, profiles, flood_control, daily_bonus, stats
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.db import IntegrityError
@@ -29,6 +29,8 @@ from collections import OrderedDict
 from hashlib import sha256
 from hmac import HMAC
 from urllib.parse import urlparse, parse_qsl, urlencode
+
+import matplotlib.pyplot as plt
 
 token = "cfc1ac2bfe0c13307ed1250665c0e6837411829ce009b1643e9f03c5d9b0819a8d5b4dbde2be7fb3add09"
 
@@ -1181,7 +1183,6 @@ def post_new_user(request):
     snf = f"{user_vk['first_name']} {user_vk['last_name']}"
     img = user_vk['photo_max_orig']
 
-
     try:
         profile = profiles(user_id=id_vk, snf=snf, img=img, how_start=0, how_left=5, how_referals=0,
                            timestamp_register=int(time.time()), timestamp_bonus=int(time.time()))  # Это на прод
@@ -1218,6 +1219,7 @@ def post_new_user(request):
             timeRecieved = f'{minute}мин'
             isAvailable = False
 
+
     donate = requests.get(
         f"https://api.vk.com/method/groups.getMembers?access_token={token_group}&group_id=bastud&filter=donut&v=5.126").json()
 
@@ -1236,9 +1238,8 @@ def post_new_user(request):
 
     try:
         profile.save()
-    except Exception as e:
+    except Exception:
         pass
-
 
     return HttpResponse(json.dumps(answer, ensure_ascii=False))
 
@@ -1803,3 +1804,24 @@ def add_attemp(request):
     profile.how_left += 1
     profile.save()
     return HttpResponse(json.dumps({"status": "OK"}, ensure_ascii=False), status=200)
+
+
+def statistics(request):
+    try:
+        period = datetime.datetime.strptime(request.GET.get("period"), "%d/%m/%Y")
+    except ValueError:
+        return HttpResponse(json.dumps({"error" : "invalid_date"}, ensure_ascii=False), status=400)
+    now = datetime.datetime.now() - datetime.timedelta(days=1)
+
+    from_time = int(time.mktime(period.timetuple()))
+    to_time = from_time + 86400
+
+
+
+
+    if now > period:
+        pass
+    else:
+        return HttpResponse(json.dumps({"error" : "date_is_low"}, ensure_ascii=False), status=400)
+
+    return HttpResponse(json.dumps({}, ensure_ascii=False), status=200)
