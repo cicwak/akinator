@@ -49,7 +49,6 @@ class profiles(models.Model):
         verbose_name = 'Профиль'
         verbose_name_plural = 'Профили'
 
-
         indexes = [
             models.Index(fields=['user_id']),
             models.Index(fields=['user_id'], name='user_id_idx'),
@@ -71,5 +70,4 @@ class daily_bonus(models.Model):
 
 class stats(models.Model):
     date = models.DateField(unique=True)
-    img = models.TextField(null=True)
     js = models.TextField(null=True)

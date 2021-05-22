@@ -5,3 +5,4 @@ logs
 nginx
 venv
 db.sqlite3
+static

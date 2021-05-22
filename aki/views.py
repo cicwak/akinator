@@ -34,6 +34,7 @@ import matplotlib.pyplot as plt
 
 token = "cfc1ac2bfe0c13307ed1250665c0e6837411829ce009b1643e9f03c5d9b0819a8d5b4dbde2be7fb3add09"
 
+
 def get_current_ip():
     session = requests.session()
 
@@ -549,7 +550,7 @@ def gg(r, user_id=None) -> bool:
                 flood_user.count += 1
                 try:
                     flood_user.save()
-                except OperationalError :
+                except OperationalError:
                     pass
             else:
                 flood_user.timestamp = int(str(datetime.datetime.now()).split(':')[1])
@@ -741,7 +742,6 @@ def start_game_ip(request):
                    answers='{}'.format(str(pars)),
                    timestamp=0, frontaddr=0, user_id=user_id)
         aks.save()
-
 
         return HttpResponse(None)
 
@@ -1133,10 +1133,6 @@ def how_games(request):
             timeRecieved = f'{minute}мин'
             isAvailable = False
 
-
-
-
-
     donate = requests.get(
         f"https://api.vk.com/method/groups.getMembers?access_token={token_group}&group_id=bastud&filter=donut&v=5.126").json()
     try:
@@ -1175,7 +1171,6 @@ def post_new_user(request):
     else:
         return HttpResponse(json.dumps({"error": "flood_control"}, ensure_ascii=False), status=403)
 
-
     user_id = id_vk
     user_vk = requests.get(
         f"https://api.vk.com/method/users.get?user_ids={user_id}&access_token={token}&fields=photo_200_orig,photo_max_orig&v=5.126").json()
@@ -1189,7 +1184,6 @@ def post_new_user(request):
         profile.save()
     except Exception as e:
         profile = profiles.objects.get(user_id=id_vk)
-
 
     timeRecieved = ''
     most_games_players = np.array(profiles.objects.order_by('-how_start'))
@@ -1218,7 +1212,6 @@ def post_new_user(request):
             minute = (int(profile.timestamp_bonus) + 86400 - int(time.time())) // 60
             timeRecieved = f'{minute}мин'
             isAvailable = False
-
 
     donate = requests.get(
         f"https://api.vk.com/method/groups.getMembers?access_token={token_group}&group_id=bastud&filter=donut&v=5.126").json()
@@ -1255,14 +1248,13 @@ def last_10_games(request):
     else:
         return HttpResponse(json.dumps({"error": "flood_control"}, ensure_ascii=False), status=403)
 
-    all_akin = akin.objects.filter(character__isnull=False)
+    all_akin = akin.objects.filter(character__isnull=False).order_by("-timestamp")
     answer = {}
 
     try:
-        last = all_akin[len(all_akin) - 10:len(all_akin)]
+        last = all_akin[:10]
     except AssertionError:
         last = all_akin
-
 
     count = 0
     for i in last:
@@ -1808,22 +1800,21 @@ def add_attemp(request):
 
 def statistics(request):
     try:
-        period = datetime.datetime.strptime(request.GET.get("period"), "%d/%m/%Y")
-    except ValueError:
-        return HttpResponse(json.dumps({"error" : "invalid_date"}, ensure_ascii=False), status=400)
+        period = datetime.datetime.strptime(request.GET.get("from"), "%d/%m/%Y")
+    except TypeError as e:
+        return HttpResponse(json.dumps({"error": "invalid_date"}, ensure_ascii=False), status=400)
+
     now = datetime.datetime.now() - datetime.timedelta(days=1)
 
     from_time = int(time.mktime(period.timetuple()))
     to_time = from_time + 86400
 
-
-
-
     if now > period:
-        aki = akin.objects.filter(timestamp__gte=from_time)#.filter(timestamp__lte=to_time)
+        aki = akin.objects.filter(timestamp__gte=from_time).filter(timestamp__lte=to_time).filter(
+            character__isnull=False)
         for i in aki:
             print(i)
     else:
-        return HttpResponse(json.dumps({"error" : "date_is_low"}, ensure_ascii=False), status=400)
+        return HttpResponse(json.dumps({"error": "date_in_future"}, ensure_ascii=False), status=400)
 
     return HttpResponse(json.dumps({}, ensure_ascii=False), status=200)
