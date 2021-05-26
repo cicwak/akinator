@@ -6,3 +6,4 @@ nginx
 venv
 db.sqlite3
 static
+data
