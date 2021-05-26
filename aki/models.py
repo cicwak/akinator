@@ -69,5 +69,6 @@ class daily_bonus(models.Model):
 
 
 class stats(models.Model):
-    date = models.DateField(unique=True)
+    date = models.TextField(unique=True)
     js = models.TextField(null=True)
+    img = models.FileField(null=True)

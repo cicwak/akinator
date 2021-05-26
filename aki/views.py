@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from json import JSONDecodeError
 
 from django.shortcuts import HttpResponse
 from .models import akin, profiles, flood_control, daily_bonus, stats
@@ -108,7 +109,6 @@ class CantGoBackAnyFurther(Exception):
 
 
 # * URLs for the API requests
-NEW_SESSION_URL1 = "https://{}/new_session?callback=jQuery331023608747682107778_{}&urlApiWs={}&partner=1&childMod={}&player=website-desktop&uid_ext_session={}&frontaddr={}&constraint=ETAT<>'AV'&soft_constraint={}&question_filter={}"
 NEW_SESSION_URL = "https://{}/new_session?callback=jQuery331023608747682107778_{}&urlApiWs={}&partner=1&childMod={}&player=website-desktop&uid_ext_session={}&frontaddr={}&constraint=ETAT<>'AV'&soft_constraint={}&question_filter={}"
 ANSWER_URL = "https://{}/answer_api?callback=jQuery331023608747682107778_{}&urlApiWs={}&childMod={}&session={}&signature={}&step={}&answer={}&frontaddr={}&question_filter={}"
 BACK_URL = "{}/cancel_answer?callback=jQuery331023608747682107778_{}&childMod={}&session={}&signature={}&step={}&answer=-1&question_filter={}"
@@ -122,6 +122,7 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) snap Chromium/81.0.4044.92 Chrome/81.0.4044.92 Safari/537.36",
     "x-requested-with": "XMLHttpRequest",
 }
+
 
 
 def _update(resp, start=False):
@@ -573,9 +574,6 @@ def gg(r, user_id=None) -> bool:
 class Akinator_dynamic_ip():
 
     def __init__(self):
-
-        self.resp = None
-
         self.uri = None
         self.server = None
         self.session = None
@@ -593,24 +591,6 @@ class Akinator_dynamic_ip():
         self.first_guess = None
         self.guesses = None
 
-    def _update(self, resp, start=False):
-        """Update class variables"""
-        self.resp = resp
-        if start:
-            self.session = int(resp["parameters"]["identification"]["session"])
-            self.signature = int(resp["parameters"]["identification"]["signature"])
-            self.question = str(resp["parameters"]["step_information"]["question"])
-            self.progression = float(resp["parameters"]["step_information"]["progression"])
-            self.step = int(resp["parameters"]["step_information"]["step"])
-        else:
-            self.question = str(resp["parameters"]["question"])
-            self.progression = float(resp["parameters"]["progression"])
-            self.step = int(resp["parameters"]["step"])
-
-    def _parse_response(self, response):
-        """Parse the JSON response and turn it into a Python object"""
-
-        return json.loads(",".join(response.split("(")[1::])[:-1])
 
     def _get_session_info(self):
         """Get uid and frontaddr from akinator.com/game"""
@@ -659,10 +639,11 @@ class Akinator_dynamic_ip():
         r = requests.get(
             NEW_SESSION_URL.format(self.uri, self.timestamp, self.server, str(self.child_mode).lower(), self.uid,
                                    self.frontaddr, soft_constraint, self.question_filter), headers=HEADERS)
-        resp = self._parse_response(r.text)
+
+
+        resp = json.loads(",".join(r.text.split("(")[1::])[:-1])
 
         if resp["completion"] == "OK":
-            self._update(resp, True)
             return resp, self.timestamp
         else:
             return resp, None
@@ -720,8 +701,6 @@ def start_game_ip(request):
             if profile.how_left < 1:
                 return HttpResponse(json.dumps({"error": "no_attemp"}, ensure_ascii=False), status=403)
             profile.save()
-
-
     except Exception:
         return HttpResponse(json.dumps({'error': 'profile not found'}, ensure_ascii=False))
 
@@ -753,13 +732,18 @@ def start_game_ip(request):
 
     uri = "ru.akinator.com"
     question_filter = ""
-    server = 'https://srv12.akinator.com:9398/ws'
+    server = 'https://srv9.akinator.com:9386/ws'
+
 
     upd_step = requests.get(
         ANSWER_URL.format(uri, timestamp, server, str('false').lower(), session,
                           signature, 0, 2, frontaddr, question_filter), headers=HEADERS)
 
-    upd_step = json.loads(",".join(upd_step.text.split("(")[1::])[:-1])
+    try:
+        upd_step = json.loads(",".join(upd_step.text.split("(")[1::])[:-1])
+    except JSONDecodeError:
+        return HttpResponse(upd_step.text, status=400)
+
     if upd_step['completion'] == 'KO - TIMEOUT':
         n = True
         while n:
@@ -777,7 +761,7 @@ def start_game_ip(request):
 
             uri = "ru.akinator.com"
             question_filter = ""
-            server = 'https://srv12.akinator.com:9398/ws'
+            server = 'https://srv9.akinator.com:9386/ws'
             upd_step = requests.get(
                 ANSWER_URL.format(uri, timestamp, server, str('false').lower(), session,
                                   signature, 0, 2, frontaddr, question_filter), headers=HEADERS)
@@ -964,7 +948,7 @@ def update(request, child_mode=False):
     aks.save()
     uri = "ru.akinator.com"
     question_filter = ""
-    server = 'https://srv12.akinator.com:9398/ws'
+    server = 'https://srv9.akinator.com:9386/ws'
 
     try:
         profile = profiles.objects.get(user_id=user_id)
@@ -1101,15 +1085,19 @@ def how_games(request):
     else:
         return HttpResponse(json.dumps({"error": "flood_control"}, ensure_ascii=False), status=403)
 
+    t1 = time.time()
+    """"""
     try:
         profile = profiles.objects.get(user_id=user_id)
     except Exception:
         return HttpResponse(json.dumps(None, ensure_ascii=False))
+    t2 = time.time()
+    """"""
 
-    most_games_players = np.array(profiles.objects.order_by('-how_start'))
+    t3 = time.time()
     place_in_top = 0
     count = 0
-    for i in most_games_players:
+    for i in profiles.objects.order_by('-how_start'):
         count += 1
         if i == profile:
             place_in_top = count
@@ -1117,7 +1105,7 @@ def how_games(request):
 
     if profile.how_left <= 0:
         profile.how_left = 0
-
+    t4 = time.time()
     if int(time.time()) > profile.timestamp_bonus + 86400:
         isAvailable = True
         timeRecieved = f'Тебе дается 2 бесплатные попытки, нажми чтобы собрать их.'
@@ -1133,8 +1121,10 @@ def how_games(request):
             timeRecieved = f'{minute}мин'
             isAvailable = False
 
+    t5 = time.time()
     donate = requests.get(
         f"https://api.vk.com/method/groups.getMembers?access_token={token_group}&group_id=bastud&filter=donut&v=5.126").json()
+    t6 = time.time()
     try:
         list_donate = donate['response']['items']
     except Exception:
@@ -1149,6 +1139,12 @@ def how_games(request):
         answer['timeReceived'] = timeRecieved
 
     profile.save()
+    print(time.time() - t1)
+    print(time.time() - t2)
+    print(time.time() - t3)
+    print(time.time() - t4)
+    print(time.time() - t5)
+    print(time.time() - t6)
     return HttpResponse(json.dumps(answer, ensure_ascii=False))
 
 
@@ -1719,7 +1715,8 @@ def rating_beetween_friends(r):
         f"=nickname,photo_200,photo_max_orig&v=5.126").json()
 
     user = user_vk = requests.get(
-        f"https://api.vk.com/method/users.get?user_ids={user_id}&access_token={token}&fields=photo_200,photo_max_orig&v=5.126").json()
+        f"https://api.vk.com/method/users.get?user_ids={user_id}&access_token={token}&fields=photo_200,photo_max_orig"
+        f"&v=5.126").json()
     friend_user = []
     try:
         for i in req['response']['items']:
@@ -1800,21 +1797,44 @@ def add_attemp(request):
 
 def statistics(request):
     try:
-        period = datetime.datetime.strptime(request.GET.get("from"), "%d/%m/%Y")
-    except TypeError as e:
+        period = datetime.datetime.strptime(request.GET.get("period"), "%d/%m/%Y")
+    except ValueError as e:
         return HttpResponse(json.dumps({"error": "invalid_date"}, ensure_ascii=False), status=400)
 
-    now = datetime.datetime.now() - datetime.timedelta(days=1)
+    def values_count(x: list) -> dict:
 
-    from_time = int(time.mktime(period.timetuple()))
-    to_time = from_time + 86400
+        a = dict()
 
-    if now > period:
-        aki = akin.objects.filter(timestamp__gte=from_time).filter(timestamp__lte=to_time).filter(
-            character__isnull=False)
-        for i in aki:
-            print(i)
-    else:
-        return HttpResponse(json.dumps({"error": "date_in_future"}, ensure_ascii=False), status=400)
+        for i, item_set in enumerate(set(x)):
+            count = 0
 
-    return HttpResponse(json.dumps({}, ensure_ascii=False), status=200)
+            for item_list in x:
+                if item_set.character.split("|")[1] == item_list.character.split("|")[1]:
+                    count += 1
+
+            a[i] = {
+                "name": item_set.character.split("|")[1],
+                "count": count,
+            }
+        return a
+
+    try:
+        stat = stats.objects.get(date=str(period))
+        answer = json.loads(stat.js)
+    except ObjectDoesNotExist:
+        now = datetime.datetime.now() - datetime.timedelta(days=1)
+
+        from_time = int(time.mktime(period.timetuple()))
+        to_time = from_time + 86400
+
+        if now > period:
+            aki = akin.objects.filter(timestamp__gte=from_time).filter(timestamp__lte=to_time).filter(
+                character__isnull=False)
+            answer = values_count(list(aki))
+            stat = stats(date=period, js=str({"js" : answer}))
+            stat.save()
+
+        else:
+            return HttpResponse(json.dumps({"error": "date_in_future"}, ensure_ascii=False), status=400)
+
+    return HttpResponse(json.dumps(answer, ensure_ascii=False), status=200)
